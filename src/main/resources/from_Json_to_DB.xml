@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:int="http://www.springframework.org/schema/integration"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:int-file="http://www.springframework.org/schema/integration/file"
+       xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+       xmlns:task="http://www.springframework.org/schema/task"
+       xmlns:int-jdbc="http://www.springframework.org/schema/integration/jdbc"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+           http://www.springframework.org/schema/beans/spring-beans.xsd
+           http://www.springframework.org/schema/integration
+           http://www.springframework.org/schema/integration/spring-integration-5.1.xsd
+           http://www.springframework.org/schema/integration/file
+           http://www.springframework.org/schema/integration/file/spring-integration-file-5.1.xsd
+           http://www.springframework.org/schema/context
+           http://www.springframework.org/schema/context/spring-context.xsd
+           http://www.springframework.org/schema/jdbc
+           http://www.springframework.org/schema/jdbc/spring-jdbc.xsd
+           http://www.springframework.org/schema/task
+           http://www.springframework.org/schema/task/spring-task.xsd
+           http://www.springframework.org/schema/integration/jdbc
+           https://www.springframework.org/schema/integration/jdbc/spring-integration-jdbc.xsd">
+
+    <context:component-scan base-package="test"/>
+    <int:poller id="poller" fixed-delay="2000"/>
+
+    <jdbc:embedded-database id="gamers" type="H2">
+        <jdbc:script location="classpath:script.sql"/>
+    </jdbc:embedded-database>
+
+    <int-file:inbound-channel-adapter directory="dataIn" id="jsonChannel"/>
+    <int-file:inbound-channel-adapter directory="dataIn" id="gameChannel"/>
+    <int-file:inbound-channel-adapter directory="dataIn" id="companyChannel"/>
+    <int-file:inbound-channel-adapter directory="dataIn" id="playerChannel"/>
+
+    <!-- GAMES -->
+    <int-file:inbound-channel-adapter
+            channel="jsonChannel"
+            directory="dataIn/games"
+            filename-pattern="*.json">
+    </int-file:inbound-channel-adapter>
+
+    <int:json-to-object-transformer input-channel="jsonChannel" output-channel="gameChannel" type="test.Game"/>
+
+    <!-- PLAYERS -->
+    <int-file:inbound-channel-adapter
+            channel="jsonChannel"
+            directory="dataIn/players"
+            filename-pattern="*.json">
+    </int-file:inbound-channel-adapter>
+
+    <int:json-to-object-transformer input-channel="jsonChannel" output-channel="playerChannel" type="test.Player"/>
+
+    <!-- COMPANIES -->
+    <int-file:inbound-channel-adapter
+            channel="jsonChannel"
+            directory="dataIn/companies"
+            filename-pattern="*.json">
+    </int-file:inbound-channel-adapter>
+
+    <int:json-to-object-transformer input-channel="jsonChannel" output-channel="companyChannel" type="test.Company"/>
+
+    <!-- WRITE DATA TO GAMES TABLE -->
+    <int-jdbc:outbound-channel-adapter
+            query="INSERT INTO GAMES (id, name, companyId)
+            values (:payload.id, :payload.name, :payload.company)"
+            data-source="gamers"
+            channel="gameChannel"/>
+
+    <!-- WRITE DATA TO PLAYERS TABLE -->
+        <int-jdbc:outbound-channel-adapter
+            query="INSERT INTO ACTORS (id, name, gamerTag)
+            values (:payload.id, :payload.name, :payload.gamer-tag)"
+            data-source="gamers"
+            channel="playerChannel"/>
+
+    <!-- WRITE DATA TO COMPANIES TABLE -->
+    <int-jdbc:outbound-channel-adapter
+            query="INSERT INTO COMPANIES (id, name)
+            values (:payload.id, :payload.name)"
+            data-source="gamers"
+            channel="companyChannel"/>
+
+    <task:executor id="pollerExecutorDB"/>
+
+</beans>
